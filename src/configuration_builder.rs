@@ -46,16 +46,10 @@ impl<Profile, Debugging, Source> ConfigurationBuilder<Profile, Debugging, Source
         self,
         profile: crate::configuration::Profile,
     ) -> ConfigurationBuilder<crate::configuration::Profile, Debugging, Source> {
-        let Self {
-            profile: _,
-            debugging,
-            source,
-        } = self;
-
         ConfigurationBuilder {
             profile,
-            debugging,
-            source,
+            debugging: self.debugging,
+            source: self.source,
         }
     }
 }
@@ -65,16 +59,10 @@ impl<Profile, Debugging, Source> ConfigurationBuilder<Profile, Debugging, Source
         self,
         debugging: crate::configuration::Debugging,
     ) -> ConfigurationBuilder<Profile, crate::configuration::Debugging, Source> {
-        let Self {
-            profile,
-            debugging: _,
-            source,
-        } = self;
-
         ConfigurationBuilder {
-            profile,
+            profile: self.profile,
             debugging,
-            source,
+            source: self.source,
         }
     }
 }
@@ -84,15 +72,9 @@ impl<Profile, Debugging, Source> ConfigurationBuilder<Profile, Debugging, Source
         self,
         source: crate::configuration::Source,
     ) -> ConfigurationBuilder<Profile, Debugging, crate::configuration::Source> {
-        let Self {
-            profile,
-            debugging,
-            source: _,
-        } = self;
-
         ConfigurationBuilder {
-            profile,
-            debugging,
+            profile: self.profile,
+            debugging: self.debugging,
             source,
         }
     }
