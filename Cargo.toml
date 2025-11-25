@@ -1,0 +1,13 @@
+[package]
+name = "c-to-wasm-compiler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tempfile = { version = "3.23" }
+thiserror = { version = "2" }
+
+[dev-dependencies]
+wasmtime = { version = "39" }
+anyhow = { version = "1" }
+rayon = { version = "1" }
