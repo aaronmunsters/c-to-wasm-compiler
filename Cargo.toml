@@ -3,11 +3,18 @@ name = "c-to-wasm-compiler"
 version = "0.1.0"
 edition = "2024"
 
+description = "C to Wasm compiler by calling out to Emscripten under the hood"
+license = "MIT"
+repository = "https://github.com/aaronmunsters/c-to-wasm-compiler"
+readme = "README.md"
+keywords = ["C", "emscripten", "compiler", "wasm"]
+categories = ["wasm", "compilers"]
+
 [dependencies]
 tempfile = { version = "3.23" }
 thiserror = { version = "2" }
 semver = { version = "1" }
-ctreg = { version = "1" }
+ctreg = { git = "https://github.com/aaronmunsters/ctreg", branch = "update-thiserror" }
 
 [dev-dependencies]
 wasmtime = { version = "39" }
