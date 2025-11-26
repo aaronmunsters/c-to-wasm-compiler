@@ -36,10 +36,9 @@ impl Compiler {
             .map_err(Error::IO)?;
 
         let mut command = configuration.as_command(input_source.path(), output_wasm.path());
-        let status = command.status().map_err(Error::IO)?;
         let output = command.output().map_err(Error::IO)?;
 
-        if !status.success() {
+        if !output.status.success() {
             return Err(Error::Unsuccesful(output));
         }
 
