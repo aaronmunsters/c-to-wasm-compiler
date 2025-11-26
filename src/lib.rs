@@ -15,25 +15,62 @@ pub mod error;
 use configuration::Configuration;
 use error::{Error, VersionError};
 
-#[derive(Default, Clone, Copy, Debug)]
-pub struct Compiler;
+pub trait FileOps {
+    /// Create temporary file
+    /// # Errors
+    /// When temporary file creation fails
+    fn create_temp(suffix: &str) -> std::io::Result<tempfile::NamedTempFile>;
 
-impl Compiler {
+    /// Writes content to path
+    /// # Errors
+    /// When writing fails
+    fn write_all(file: &mut NamedTempFile, data: &[u8]) -> std::io::Result<()>;
+
+    /// Reads content from path
+    /// # Errors
+    /// When reading fails
+    fn read_file(path: &std::path::Path) -> std::io::Result<Vec<u8>>;
+}
+
+pub enum TempFS {}
+
+impl FileOps for TempFS {
+    fn create_temp(suffix: &str) -> std::io::Result<tempfile::NamedTempFile> {
+        NamedTempFile::with_suffix(suffix)
+    }
+
+    fn write_all(file: &mut NamedTempFile, data: &[u8]) -> std::io::Result<()> {
+        file.as_file().write_all(data)
+    }
+
+    fn read_file(path: &std::path::Path) -> std::io::Result<Vec<u8>> {
+        let output_file = File::open(path)?;
+        let mut reader = BufReader::new(output_file);
+        let mut output_content = vec![];
+        reader.read_to_end(&mut output_content)?;
+        Ok(output_content)
+    }
+}
+
+pub type Compiler = AbstractCompiler<TempFS>;
+
+pub struct AbstractCompiler<FS: FileOps> {
+    _fs: core::marker::PhantomData<FS>,
+}
+
+impl<FS: FileOps> AbstractCompiler<FS> {
     /// Compiles the current configuration into a WebAssembly module using
     /// the [emscripten compiler](https://emscripten.org/).
     ///
     /// # Errors
     /// - If using the host's file system fails.
     /// - If compilation fails
-    pub fn compile(&self, configuration: &Configuration) -> Result<Vec<u8>, Error> {
-        let input_source = NamedTempFile::with_suffix("_c-to-wasm-source.c").map_err(Error::IO)?;
-        let output_wasm = NamedTempFile::with_suffix("_c-to-wasm-out.wasm").map_err(Error::IO)?;
+    pub fn compile(configuration: &Configuration) -> Result<Vec<u8>, Error> {
+        let mut input_source = FS::create_temp("_c-to-wasm-source.c").map_err(Error::IO)?;
+        let output_wasm = FS::create_temp("_c-to-wasm-out.wasm").map_err(Error::IO)?;
 
         // Write into temp file
-        input_source
-            .as_file()
-            .write_all(configuration.source().as_bytes())
-            .map_err(Error::IO)?;
+        FS::write_all(&mut input_source, configuration.source().as_bytes()).map_err(Error::IO)?;
 
         let mut command = configuration.as_command(input_source.path(), output_wasm.path());
         let output = command.output().map_err(Error::IO)?;
@@ -43,10 +80,7 @@ impl Compiler {
         }
 
         // Read from temp file
-        let output_file = File::open(output_wasm.path()).map_err(Error::IO)?;
-        let mut reader = BufReader::new(output_file);
-        let mut output_content = vec![];
-        reader.read_to_end(&mut output_content).map_err(Error::IO)?;
+        let output_content = FS::read_file(output_wasm.path()).map_err(Error::IO)?;
 
         Ok(output_content)
     }

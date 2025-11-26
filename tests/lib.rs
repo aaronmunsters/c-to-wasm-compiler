@@ -6,6 +6,8 @@ use c_to_wasm_compiler::configuration_builder::ConfigurationBuilder;
 use rayon::prelude::*;
 use wasmtime::{WasmParams, WasmResults};
 
+mod mocked_fs;
+
 const PROFILE_OPTS: &[Profile; 4] = {
     use Profile::{O0, O1, O2, O3};
     &[O0, O1, O2, O3]
@@ -22,27 +24,16 @@ fn test_semver() -> anyhow::Result<()> {
     Ok(())
 }
 
+const FAC_SOURCE: &str = include_str!("fac.c");
+
 #[test]
 fn test_different_variants() {
     DEBUG_OPTS.par_iter().for_each(|debug_option| {
         PROFILE_OPTS.par_iter().for_each(|profile_option| {
-            let source = r#"
-                #include <stdint.h>
-                
-                __attribute__((export_name("fac")))
-                int32_t fac(int32_t n) {
-                    if (n == 0) {
-                        return 1;
-                    } else {
-                        return n * fac(n - 1);
-                    }
-                }
-            "#;
-
             let config = ConfigurationBuilder::init()
                 .debugging(*debug_option)
                 .profile(*profile_option)
-                .source(source.into())
+                .source(FAC_SOURCE.into())
                 .build();
 
             // Assert on the outcome
@@ -106,8 +97,7 @@ fn failing_compilation() {
         .build();
 
     assert!(
-        Compiler
-            .compile(&config)
+        Compiler::compile(&config)
             .is_err_and(|err| matches!(err, c_to_wasm_compiler::error::Error::Unsuccesful(_)))
     );
 }
@@ -120,7 +110,7 @@ fn assert_outcome<Params: WasmParams, Results: WasmResults + Eq + Debug>(
 ) -> anyhow::Result<()> {
     let output = {
         /* Compiling C source code into Wasm */
-        Compiler.compile(config)?
+        Compiler::compile(config)?
     };
 
     {
@@ -142,16 +132,13 @@ fn assert_outcome<Params: WasmParams, Results: WasmResults + Eq + Debug>(
 
 #[test]
 fn configuration_settings() {
-    use c_to_wasm_compiler::configuration::Debugging::Disabled;
-    use c_to_wasm_compiler::configuration::Profile::O0;
-
     let config = ConfigurationBuilder::init()
-        .debugging(Disabled)
-        .profile(O0)
+        .debugging(Debugging::Disabled)
+        .profile(Profile::O0)
         .source("hi there!".into())
         .build();
 
-    assert_eq!(config.debugging(), &Disabled);
-    assert_eq!(config.profile(), &O0);
+    assert_eq!(config.debugging(), &Debugging::Disabled);
+    assert_eq!(config.profile(), &Profile::O0);
     assert_eq!(config.source(), "hi there!");
 }
