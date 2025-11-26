@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use c_to_wasm_compiler::Compiler;
-use c_to_wasm_compiler::configuration::{Configuration, Debugging, Profile};
+use c_to_wasm_compiler::configuration::{Configuration, Debugging, Filename, Profile};
 use c_to_wasm_compiler::configuration_builder::ConfigurationBuilder;
 use rayon::prelude::*;
 use wasmtime::{WasmParams, WasmResults};
@@ -18,6 +18,16 @@ const DEBUG_OPTS: &[Debugging; 2] = {
     &[Enabled, Disabled]
 };
 
+const FILENAME_CONFIGS: &[fn() -> Filename] = {
+    use Filename::{Configured, Unspecified};
+    &[
+        // User did not specify anything
+        || Unspecified,
+        // User specifies as source 'lib.c'
+        || Configured("lib.c".into()),
+    ]
+};
+
 #[test]
 fn test_semver() -> anyhow::Result<()> {
     Compiler::version()?;
@@ -28,16 +38,19 @@ const FAC_SOURCE: &str = include_str!("fac.c");
 
 #[test]
 fn test_different_variants() {
-    DEBUG_OPTS.par_iter().for_each(|debug_option| {
-        PROFILE_OPTS.par_iter().for_each(|profile_option| {
-            let config = ConfigurationBuilder::init()
-                .debugging(*debug_option)
-                .profile(*profile_option)
-                .source(FAC_SOURCE.into())
-                .build();
+    FILENAME_CONFIGS.par_iter().for_each(|filename_config| {
+        DEBUG_OPTS.par_iter().for_each(|debug_option| {
+            PROFILE_OPTS.par_iter().for_each(|profile_option| {
+                let config = ConfigurationBuilder::init()
+                    .debugging(*debug_option)
+                    .profile(*profile_option)
+                    .source(FAC_SOURCE.into())
+                    .filename(filename_config())
+                    .build();
 
-            // Assert on the outcome
-            assert_outcome(&config, "fac", 5, &120).unwrap();
+                // Assert on the outcome
+                assert_outcome(&config, "fac", 5, &120).unwrap();
+            });
         });
     });
 }
@@ -61,6 +74,7 @@ fn recursive_input() -> anyhow::Result<()> {
         .debugging(Debugging::Enabled)
         .profile(Profile::O0)
         .source(source.into())
+        .filename(Filename::Unspecified)
         .build();
 
     assert_outcome(&config, "fac", 5, &120)?;
@@ -82,6 +96,7 @@ fn unsafe_c_overflow() -> anyhow::Result<()> {
         .debugging(Debugging::Disabled)
         .profile(Profile::O3)
         .source(source.into())
+        .filename(Filename::Unspecified)
         .build();
 
     assert_outcome(&config, "overflow", (i32::MAX, 1), &i32::MIN)?;
@@ -94,6 +109,7 @@ fn failing_compilation() {
         .debugging(Debugging::Disabled)
         .profile(Profile::O3)
         .source("no c source code".into())
+        .filename(Filename::Unspecified)
         .build();
 
     assert!(
@@ -136,6 +152,7 @@ fn configuration_settings() {
         .debugging(Debugging::Disabled)
         .profile(Profile::O0)
         .source("hi there!".into())
+        .filename(Filename::Unspecified)
         .build();
 
     assert_eq!(config.debugging(), &Debugging::Disabled);

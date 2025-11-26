@@ -1,12 +1,12 @@
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
+use std::path::PathBuf;
 use std::process::Command;
 
 /* re-export the semver version */
 pub use semver::Version;
 
 use ctreg::regex;
-use tempfile::NamedTempFile;
 
 pub mod configuration;
 pub mod configuration_builder;
@@ -19,12 +19,12 @@ pub trait FileOps {
     /// Create temporary file
     /// # Errors
     /// When temporary file creation fails
-    fn create_temp(suffix: &str) -> std::io::Result<tempfile::NamedTempFile>;
+    fn create_temp_exact(filename: &str) -> std::io::Result<(tempfile::TempDir, PathBuf, File)>;
 
     /// Writes content to path
     /// # Errors
     /// When writing fails
-    fn write_all(file: &mut NamedTempFile, data: &[u8]) -> std::io::Result<()>;
+    fn write_all(file: &mut File, data: &[u8]) -> std::io::Result<()>;
 
     /// Reads content from path
     /// # Errors
@@ -35,12 +35,15 @@ pub trait FileOps {
 pub enum TempFS {}
 
 impl FileOps for TempFS {
-    fn create_temp(suffix: &str) -> std::io::Result<tempfile::NamedTempFile> {
-        NamedTempFile::with_suffix(suffix)
+    fn create_temp_exact(filename: &str) -> std::io::Result<(tempfile::TempDir, PathBuf, File)> {
+        let temp_dir = tempfile::TempDir::new()?;
+        let path = PathBuf::from(temp_dir.path()).join(filename);
+        let file = File::create(&path)?;
+        Ok((temp_dir, path, file))
     }
 
-    fn write_all(file: &mut NamedTempFile, data: &[u8]) -> std::io::Result<()> {
-        file.as_file().write_all(data)
+    fn write_all(file: &mut File, data: &[u8]) -> std::io::Result<()> {
+        file.write_all(data)
     }
 
     fn read_file(path: &std::path::Path) -> std::io::Result<Vec<u8>> {
@@ -66,13 +69,21 @@ impl<FS: FileOps> AbstractCompiler<FS> {
     /// - If using the host's file system fails.
     /// - If compilation fails
     pub fn compile(configuration: &Configuration) -> Result<Vec<u8>, Error> {
-        let mut input_source = FS::create_temp("_c-to-wasm-source.c").map_err(Error::IO)?;
-        let output_wasm = FS::create_temp("_c-to-wasm-out.wasm").map_err(Error::IO)?;
+        let file_name = match &configuration.filename {
+            configuration::Filename::Unspecified => "c-to-wasm-source.c",
+            configuration::Filename::Configured(filename) => filename.as_str(),
+        };
+
+        let (source_parent_dir, input_path, mut input_source) =
+            FS::create_temp_exact(file_name).map_err(Error::IO)?;
+
+        let (out_parent_dir, output_path, _output_wasm) =
+            FS::create_temp_exact("c-to-wasm-out.wasm").map_err(Error::IO)?;
 
         // Write into temp file
         FS::write_all(&mut input_source, configuration.source().as_bytes()).map_err(Error::IO)?;
 
-        let mut command = configuration.as_command(input_source.path(), output_wasm.path());
+        let mut command = configuration.as_command(&input_path, &output_path);
         let output = command.output().map_err(Error::IO)?;
 
         if !output.status.success() {
@@ -80,7 +91,10 @@ impl<FS: FileOps> AbstractCompiler<FS> {
         }
 
         // Read from temp file
-        let output_content = FS::read_file(output_wasm.path()).map_err(Error::IO)?;
+        let output_content = FS::read_file(&output_path).map_err(Error::IO)?;
+
+        drop(source_parent_dir);
+        drop(out_parent_dir);
 
         Ok(output_content)
     }

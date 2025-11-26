@@ -41,6 +41,13 @@ pub struct Configuration {
     pub(crate) profile: Profile,
     pub(crate) debugging: Debugging,
     pub(crate) source: String,
+    pub(crate) filename: Filename,
+}
+
+#[derive(Clone, Debug)]
+pub enum Filename {
+    Unspecified,
+    Configured(String),
 }
 
 impl Configuration {

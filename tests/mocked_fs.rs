@@ -1,8 +1,11 @@
 use c_to_wasm_compiler::{
     AbstractCompiler, FileOps,
-    configuration::{Debugging, Profile},
+    configuration::{Debugging, Filename, Profile},
     configuration_builder::ConfigurationBuilder,
 };
+
+use std::fs::File;
+use std::path::PathBuf;
 
 static mut FAIL_COUNTER: i32 = 10;
 
@@ -11,23 +14,25 @@ const FAC_SOURCE: &str = include_str!("fac.c");
 struct MockFS;
 
 impl FileOps for MockFS {
-    fn create_temp(suffix: &str) -> std::io::Result<tempfile::NamedTempFile> {
-        use tempfile::NamedTempFile;
+    fn create_temp_exact(filename: &str) -> std::io::Result<(tempfile::TempDir, PathBuf, File)> {
         if unsafe { FAIL_COUNTER == 0 } {
             Err(std::io::Error::from_raw_os_error(0))
         } else {
             unsafe { FAIL_COUNTER -= 1 }
-            NamedTempFile::with_suffix(suffix)
+            let temp_dir = tempfile::TempDir::new()?;
+            let path = PathBuf::from(temp_dir.path()).join(filename);
+            let file = File::create(&path)?;
+            Ok((temp_dir, path, file))
         }
     }
 
-    fn write_all(file: &mut tempfile::NamedTempFile, data: &[u8]) -> std::io::Result<()> {
+    fn write_all(file: &mut File, data: &[u8]) -> std::io::Result<()> {
         use std::io::Write;
         if unsafe { FAIL_COUNTER == 0 } {
             Err(std::io::Error::from_raw_os_error(0))
         } else {
             unsafe { FAIL_COUNTER -= 1 }
-            file.as_file().write_all(data)
+            file.write_all(data)
         }
     }
 
@@ -56,6 +61,7 @@ fn test_create_temp_file_error() {
             .debugging(Debugging::Disabled)
             .profile(Profile::O0)
             .source(FAC_SOURCE.into())
+            .filename(Filename::Unspecified)
             .build();
 
         AbstractCompiler::<MockFS>::compile(&config)

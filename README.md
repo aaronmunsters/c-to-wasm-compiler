@@ -10,7 +10,7 @@ Requires [Emscripten](https://emscripten.org/) installed and in your PATH.
 
 ```rust
 use c_to_wasm_compiler::{Compiler, configuration_builder::ConfigurationBuilder};
-use c_to_wasm_compiler::configuration::{Debugging, Profile};
+use c_to_wasm_compiler::configuration::{Debugging, Profile, Filename};
 
 let c_source = r#"
     #include <stdint.h>
@@ -25,6 +25,7 @@ let config = ConfigurationBuilder::init()
     .source(c_source.into())
     .profile(Profile::O2)
     .debugging(Debugging::Disabled)
+    .filename(Filename::Unspecified)
     .build();
 
 let wasm_bytes = Compiler::compile(&config)?;
