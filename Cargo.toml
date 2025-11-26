@@ -6,6 +6,8 @@ edition = "2024"
 [dependencies]
 tempfile = { version = "3.23" }
 thiserror = { version = "2" }
+semver = { version = "1" }
+ctreg = { version = "1" }
 
 [dev-dependencies]
 wasmtime = { version = "39" }

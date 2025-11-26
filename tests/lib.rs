@@ -17,6 +17,12 @@ const DEBUG_OPTS: &[Debugging; 2] = {
 };
 
 #[test]
+fn test_semver() -> anyhow::Result<()> {
+    Compiler::version()?;
+    Ok(())
+}
+
+#[test]
 fn test_different_variants() {
     DEBUG_OPTS.par_iter().for_each(|debug_option| {
         PROFILE_OPTS.par_iter().for_each(|profile_option| {

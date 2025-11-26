@@ -1,6 +1,11 @@
 use std::fs::File;
 use std::io::{BufReader, Read, Write};
+use std::process::Command;
 
+/* re-export the semver version */
+pub use semver::Version;
+
+use ctreg::regex;
 use tempfile::NamedTempFile;
 
 pub mod configuration;
@@ -8,7 +13,7 @@ pub mod configuration_builder;
 pub mod error;
 
 use configuration::Configuration;
-use error::Error;
+use error::{Error, VersionError};
 
 #[derive(Default, Clone, Copy, Debug)]
 pub struct Compiler;
@@ -45,5 +50,40 @@ impl Compiler {
         reader.read_to_end(&mut output_content).map_err(Error::IO)?;
 
         Ok(output_content)
+    }
+}
+
+regex! { pub EmccSemVerRegex = r"emcc \(Emscripten gcc\/clang-like replacement \+ linker emulating GNU ld\) (?<semver>\d*\.\d*\.\d*) \([\d\w]*\)" }
+
+impl Compiler {
+    /// Yields the version of the [emscripten compiler](https://emscripten.org/) as
+    /// a semver struct.
+    ///
+    /// # Errors
+    /// - If [emscripten](https://emscripten.org/) is not installed on the host
+    /// - If the version cannot be read from the command output
+    pub fn version() -> Result<Version, VersionError> {
+        // Invoke command to request emcc version
+        let output = Command::new("emcc")
+            .arg("--version")
+            .output()
+            .map_err(VersionError::IO)?;
+
+        // If invocation failed, yield early
+        if !output.status.success() {
+            return Err(VersionError::InvocationNoSuccess(output));
+        }
+
+        // Parse command output to `String`
+        let command_output =
+            String::try_from(output.stdout).map_err(VersionError::AttemptReadStdOut)?;
+
+        // Parse command ourput to matching semver specification regex
+        let Some(semver) = EmccSemVerRegex::new().captures(&command_output) else {
+            return Err(VersionError::RegexNoMatch(command_output));
+        };
+
+        // Parse matching regex specification to `Semver`
+        Version::parse(semver.semver.content).map_err(VersionError::VersionParseFailed)
     }
 }
