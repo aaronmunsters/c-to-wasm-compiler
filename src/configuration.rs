@@ -2,6 +2,10 @@ use std::{path::Path, process::Command};
 
 pub type Source = String;
 
+trait IncludeInCommand {
+    fn include_in(&self, command: &mut Command);
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Profile {
     O0,
@@ -10,14 +14,15 @@ pub enum Profile {
     O3,
 }
 
-impl Profile {
-    fn as_emcc_arg(&self) -> &str {
-        match self {
+impl IncludeInCommand for Profile {
+    fn include_in(&self, command: &mut Command) {
+        let arg = match self {
             Profile::O0 => "-O0",
             Profile::O1 => "-O1",
             Profile::O2 => "-O2",
             Profile::O3 => "-O3",
-        }
+        };
+        command.arg(arg);
     }
 }
 
@@ -27,11 +32,13 @@ pub enum Debugging {
     Disabled,
 }
 
-impl Debugging {
-    fn as_emcc_arg(&self) -> &str {
+impl IncludeInCommand for Debugging {
+    fn include_in(&self, command: &mut Command) {
         match self {
-            Debugging::Enabled => "-g",
-            Debugging::Disabled => "",
+            Debugging::Enabled => {
+                command.arg("-g");
+            }
+            Debugging::Disabled => {}
         }
     }
 }
@@ -75,9 +82,9 @@ impl Configuration {
         // Disable requirement for `main` to be present
         command.arg("--no-entry");
         // Include performance profile
-        command.arg(self.profile.as_emcc_arg());
+        self.profile.include_in(&mut command);
         // Include debug flag if set in configuration
-        command.arg(self.debugging.as_emcc_arg());
+        self.debugging.include_in(&mut command);
         // Disable generation of JS glue code
         command.args(["-s", "STANDALONE_WASM=1"]);
         // Set output path
