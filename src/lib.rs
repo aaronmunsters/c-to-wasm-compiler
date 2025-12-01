@@ -100,7 +100,7 @@ impl<FS: FileOps> AbstractCompiler<FS> {
     }
 }
 
-regex! { pub EmccSemVerRegex = r"emcc \(Emscripten gcc\/clang-like replacement \+ linker emulating GNU ld\) (?<semver>\d*\.\d*\.\d*) \([\d\w]*\)" }
+regex! { EmccSemVerRegex = r"emcc \(Emscripten gcc\/clang-like replacement \+ linker emulating GNU ld\) (?<semver>\d*\.\d*\.\d*) \([\d\w]*\)" }
 
 impl Compiler {
     /// Yields the version of the [emscripten compiler](https://emscripten.org/) as
